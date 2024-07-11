@@ -1,5 +1,6 @@
-name: Rust Code Quality
+name: Rust CI
 
+# Executa o workflow apenas em eventos de Pull Request
 on:
   pull_request:
     branches:
@@ -23,4 +24,19 @@ jobs:
     - name: Run Clippy
       env:
         CARGO_TERM_COLOR: always
-      run: cargo clippy
+      run: |
+        # Executa o Clippy e redireciona a saída para um arquivo de log
+        cargo clippy > clippy.log 2>&1
+        
+        # Verifica se há avisos na saída do Clippy
+        if grep -q "warning:" clippy.log; then
+          echo "Warnings found in Clippy output:"
+          cat clippy.log
+          echo "Please address these warnings."
+          # Continua o job, mas destaca que houve avisos
+          exit 0
+        fi
+
+    - name: Display Clippy Check
+      if: always()
+      run: cat clippy.log
