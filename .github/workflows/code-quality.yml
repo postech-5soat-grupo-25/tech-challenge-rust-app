@@ -40,3 +40,16 @@ jobs:
     - name: Display Clippy Check
       if: always()
       run: cat clippy.log
+
+    - name: Post Clippy Check
+      if: always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const log = fs.readFileSync('clippy.log', 'utf8');
+          github.rest.issues.createComment({
+            ...github.context.repo,
+            issue_number: github.context.issue.number,
+            body: `### Clippy Code Quality Check\n\n\`\`\`\n${log}\n\`\`\``
+          });
