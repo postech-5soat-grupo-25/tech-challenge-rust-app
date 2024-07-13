@@ -1,13 +1,15 @@
-name: Rust CI
+name: Code Quality
 
-# Executa o workflow apenas em eventos de Pull Request
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
 
 jobs:
-  clippy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,32 +26,21 @@ jobs:
     - name: Run Clippy
       env:
         CARGO_TERM_COLOR: always
+      run: cargo clippy
+
+    - name: Install Sonar Scanner
       run: |
-        # Executa o Clippy e redireciona a saída para um arquivo de log
-        cargo clippy > clippy.log 2>&1
-        
-        # Verifica se há avisos na saída do Clippy
-        if grep -q "warning:" clippy.log; then
-          echo "Warnings found in Clippy output:"
-          cat clippy.log
-          echo "Please address these warnings."
-          # Continua o job, mas destaca que houve avisos
-          exit 0
-        fi
+        curl -sSLo sonar-scanner-cli.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.6.2.2472-linux.zip
+        unzip sonar-scanner-cli.zip -d $HOME
+        export PATH="$HOME/sonar-scanner-4.6.2.2472-linux/bin:$PATH"
 
-    - name: Display Clippy Check
-      if: always()
-      run: cat clippy.log
-
-    - name: Post Clippy Check
-      if: always()
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const fs = require('fs');
-          const log = fs.readFileSync('clippy.log', 'utf8');
-          github.rest.issues.createComment({
-            ...github.context.repo,
-            issue_number: github.context.issue.number,
-            body: `### Clippy Code Quality Check\n\n\`\`\`\n${log}\n\`\`\``
-          });
+    - name: Run SonarCloud Analysis
+      env:
+        SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+        SONAR_ORG: ${{ secrets.SONARCLOUD_ORGANIZATION }}
+      run: sonar-scanner \
+            -Dsonar.organization=${{ secrets.SONARCLOUD_ORGANIZATION }} \
+            -Dsonar.projectKey=postech-5soat-grupo-25 \
+            -Dsonar.sources=src \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=${{ secrets.SONARCLOUD_TOKEN }}
