@@ -5,43 +5,106 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
+    types: [opened, synchronize, reopened]
 
 jobs:
-  build:
+  rust:
+    name: Custom Tools for Rust
     runs-on: ubuntu-latest
-
+    
     steps:
     - uses: actions/checkout@v2
+    
+    - name: Cache `cargo` Registry
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
 
-    - name: Set up Rust 1.75
+    - name: Cache `cargo` Index
+      uses: actions/cache@v2
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-index-
+
+    - name: Cache `cargo` Build
+      uses: actions/cache@v2
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-
+
+    - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: 1.75.0
+        toolchain: nightly
+        override: true
+        components: rustfmt, clippy
 
-    - name: Install Clippy
-      run: rustup component add clippy
-
-    - name: Run Clippy
+    - name: Install Tools
       env:
         CARGO_TERM_COLOR: always
-      run: cargo clippy
-
-    - name: Install Sonar Scanner
       run: |
-        curl -sSLo sonar-scanner-cli.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.6.2.2472-linux.zip
-        unzip sonar-scanner-cli.zip
-        export PATH=$(pwd)/sonar-scanner-4.6.2.2472-linux/bin:$PATH
-        echo "export PATH=$(pwd)/sonar-scanner-4.6.2.2472-linux/bin:$PATH" >> $GITHUB_ENV
-
-    - name: Run SonarCloud Analysis
+        cargo install --force cargo-audit
+        cargo install --force cargo-deny
+        cargo install --force cargo-outdated
+    
+    - name: Run `clippy`
       env:
-        SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
-        SONAR_ORG: ${{ secrets.SONARCLOUD_ORGANIZATION }}
-      run: sonar-scanner \
-            -Dsonar.organization=${{ secrets.SONARCLOUD_ORGANIZATION }} \
-            -Dsonar.projectKey=postech-5soat-grupo-25 \
-            -Dsonar.sources=src \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=${{ secrets.SONARCLOUD_TOKEN }}
+        CARGO_TERM_COLOR: always
+      run: cargo clippy --message-format=json > clippy.json
+
+    - name: Run `cargo-audit`
+      env:
+        CARGO_TERM_COLOR: always
+      run: cargo audit --json > audit.json
+
+    - name: Run `cargo-deny`
+      env:
+        CARGO_TERM_COLOR: always
+      run: cargo deny --format json check 2> deny.json
+
+    - name: Run `cargo-outdated`
+      env:
+        CARGO_TERM_COLOR: always
+      run: cargo outdated --workspace --depth 1 --format json > outdated.json
+    
+    - name: Convert to Report
+      env:
+        CARGO_TERM_COLOR: always
+      run: |
+        cargo install cargo-sonar
+        cargo sonar --clippy --audit --deny --outdated
+    
+    - name: Upload Report Artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: sonar-issues
+        path: sonar-issues.json
+
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    needs: rust
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download Report Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: sonar-issues
+          path: ./
+      
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}

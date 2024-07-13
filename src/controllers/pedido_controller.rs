@@ -5,7 +5,7 @@ use rocket::http::hyper::Method;
 use tokio::sync::Mutex;
 
 use crate::base::domain_error::DomainError;
-use crate::entities::pagamento::{self, Pagamento};
+use crate::entities::pagamento::Pagamento;
 use crate::entities::pedido::{self, Pedido};
 use crate::traits::pagamento_webhook_adapter::PagamentoWebhookAdapter;
 use serde_json::Value;
