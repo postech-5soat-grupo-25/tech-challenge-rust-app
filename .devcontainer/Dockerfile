@@ -1,5 +1,5 @@
 # Use the official Rust image from Docker Hub
-FROM rust:1.75
+FROM rustlang/rust:nightly
 
 # Install essential tools and dependencies
 RUN apt-get update && \
