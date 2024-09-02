@@ -1,4 +1,4 @@
-# `tech challenge` | PosTech 5SOAT • Grupo 25
+# `Tech Challenge` | PosTech 5SOAT • Grupo 25
 
 ## Sobre o Projeto
 
